@@ -1,0 +1,144 @@
+\l                                /* list all databases on a schema */
+
+CREATE DATABASE users_managemnt;  /* create database users_management */
+
+\l
+
+\c users_management;              /* connect with database users_management */
+
+
+
+CREATE TYPE NameEnum AS ENUM('admin','guest','customer');
+
+CREATE TABLE roles (
+        id uuid NOT NULL DEFAULT uuid_generate_v4() PRIMARY KEY,
+        name NameEnum DEFAULT NULL,
+        active BOOLEAN DEfAULT TRUE,
+        deleted BOOLEAN DEfAULT FALSE,
+        created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+\dt           /* list all tables in current database */
+
+
+INSERT INTO roles (
+   name, active, deleted
+   
+) VALUES 
+   ('admin','t','f'),
+   ('guest','t','f'),
+   ('customer','t','f');
+
+SELECT * FROM roles;
+
+
+
+CREATE TABLE users (
+        id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+	name VARCHAR ( 50 ) UNIQUE NOT NULL,
+	email VARCHAR ( 50 ) UNIQUE NOT NULL,
+        verified BOOLEAN DEFAULT FALSE,
+        verified_on timestamp,
+        active BOOLEAN DEFAULT TRUE,
+        created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+        created_by uuid REFERENCES users(id),
+        deleted BOOLEAN DEFAULT FALSE,
+        deleted_on timestamp,
+        deleted_by uuid REFERENCES users(id)
+        
+);
+
+\dt           /* list all tables in current database */
+
+INSERT INTO users (
+        name, email, verified, active, deleted
+      
+) VALUES
+    ('Supreme', 'SupremeMail@gmail.com','t','t','f'),
+    ('Abhishek', 'Kelenia@gmail.com','t','t','f'),
+    ('Harsh', 'Aggarwal@gmail.com','t','t','f'),
+    ('Raju', 'Kumar@gmail.com','t','t','f'),
+    ('Nikhil', 'Aggarwal3@gmail.com','t','t','f'),
+    ('Anshul', 'Aggarwal4@gmail.com','t','t','f'),
+    ('Virat', 'Kohli@gmail.com','t','t','f'),
+    ('Rohit', 'Sharma@gmail.com','t','t','f'),
+    ('Sandy', 'Jain2@gmail.com','t','t','f'),
+    ('Abhi', 'Keli@gmail.com','t','t','f');
+
+SELECT * FROM users;
+
+
+
+CREATE TABLE user_roles (
+        id uuid DEFAULT uuid_generate_v4(),
+	user_id uuid,
+        user_name VARCHAR ( 50 ) DEFAULT NULL,
+	role_id uuid,
+        role_name NameEnum DEFAULT NULL,
+        deleted BOOLEAN DEFAULT FALSE, 
+        CONSTRAINT fk_users FOREIGN KEY (user_id) REFERENCES users(id) DEFERRABLE INITIALLY DEFERRED,       
+        CONSTRAINT fk_roles FOREIGN KEY (role_id) REFERENCES roles(id) DEFERRABLE INITIALLY DEFERRED
+  
+);
+
+\dt           /* list all tables in current database */
+
+INSERT INTO user_roles (
+   user_id, role_id
+   
+) VALUES 
+   ('b83c7782-ad0d-4ac1-bfe6-8945a10877a4','746ed91f-1930-4150-bfad-61dd36940672'),
+   ('c1cd8a33-eadc-43b0-b343-4fe0dd944727','746ed91f-1930-4150-bfad-61dd36940672'),
+   ('0ad08326-81dd-4125-b86c-16cb938786c0','ebe30c31-2c53-480c-baa6-883a8abc3f26'),
+   ('6a0fd6ba-5b8a-4a17-b6e8-95411cef82e2','ebe30c31-2c53-480c-baa6-883a8abc3f26'),
+   ('8199325a-900e-4f1b-87e9-64372c5eb92b','26d609bb-7ec5-4208-a50b-8c7fd8686e82'),
+   ('68652b05-0102-4b96-b274-651f5fd805b4','26d609bb-7ec5-4208-a50b-8c7fd8686e82');
+
+
+UPDATE user_roles SET user_name = users.name FROM users WHERE users.id = user_roles.user_id;
+UPDATE user_roles SET role_name = roles.name FROM roles WHERE roles.id = user_roles.role_id;
+
+
+SELECT * FROM user_roles;
+
+
+
+CREATE TABLE user_backup AS SELECT * FROM users;
+
+SELECT * FROM user_backup;
+
+
+SELECT users.id, users.name, users.email, roles.name AS role, users.created_on 
+FROM users INNER JOIN user_roles ON users.id = user_roles.user_id
+           INNER JOIN roles ON roles.id = user_roles.role_id AND
+      users.verified = TRUE AND 
+      users.active = TRUE AND 
+      users.deleted = FALSE AND 
+      users.created_on > CURRENT_DATE - INTERVAL '5 DAYS';
+
+
+CREATE OR REPLACE FUNCTION deleted_update()
+  RETURNS trigger AS
+$$
+BEGIN
+
+IF NEW.deleted = TRUE THEN
+    UPDATE user_roles SET deleted = TRUE WHERE user_id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+
+$$
+LANGUAGE 'plpgsql';
+
+
+
+CREATE TRIGGER dele_update
+    AFTER UPDATE
+    ON users
+    FOR EACH ROW
+    EXECUTE PROCEDURE deleted_update();
+
+SELECT * FROM user_roles;
+
+
